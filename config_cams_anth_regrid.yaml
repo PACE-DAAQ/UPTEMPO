@@ -1,0 +1,20 @@
+# UPTEMPO Regridding Configuration
+# Edit the values below to customize your workflow
+
+year: 2024
+species:
+  - bc
+  - co
+  - nh3
+  - oc
+  - so2
+  - nox
+  - isoprene
+  - monoterpenes
+CAMS_GLOB_ANT_dir: '/glade/work/sshams/CAMS_glob_ant/monthly/'
+CAMS_grid_file: '/glade/work/rkumar/mpas_latest/UPTEMPO/Gridinfo_CAMS-GLOB-ANT_c20240709.nc'
+SERR_scrip_file: '/glade/campaign/ncar/nmmm0072/rkumar/UPTEMPO/mpas_scrip.163842.nc'
+Regridding_weights_file: '/glade/work/lacey/PACE-MPAS-A/PythonTest/ESMF_Weight_CAMSv5.1_grid_to_MPAS.x1.163842_c20250829.nc'
+dst_file_format: '/glade/work/rkumar/mpas_latest/UPTEMPO/CAMS-GLOB-ANT_{year}_MPAS.x1.163842.grid.SPC.nc'
+inp_file_format: '/glade/work/sshams/CAMS_glob_ant/monthly/CAMS-GLOB-ANT_Glb_0.1x0.1_anthro_SPC_v5.3_monthly_{year}.nc'
+sectors: []

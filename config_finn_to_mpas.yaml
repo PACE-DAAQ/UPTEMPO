@@ -1,0 +1,19 @@
+start_date: '2024-11-11'   # YYYY-MM-DD
+end_date: '2024-11-30'     # YYYY-MM-DD
+emis_dir: '/glade/derecho/scratch/lacey/PACE/FINNv2.5/{year}/'
+emis_file_pattern: 'FINNv2.5.1_modvrs_nrt_MOZART_{year}{month}*.txt'
+dst_file_dir: '/glade/derecho/scratch/lacey/MPAS_DEVEL/input/daily/NovTest/'
+output_file_pattern: 'FINNv2.5.1_modvrs_nrt_MOZART_{year}{month}_{mpas_grid_name}_{freq}_NO2.nc'
+mpas_grid_file: '/glade/campaign/ncar/nmmm0072/GRID/x1.163842.static.nc'
+HOURLY: true
+lt_fac: [.43, .43, .43, .43, .43, .43, .43, .43, .43, 3., 6., 10., 14., 17., 14., 12., 9., 6., 3., .43, .43, .43, .43, .43]
+output_format: 'NETCDF3_64BIT'
+compression:
+  zlib: true
+  complevel: 4
+  shuffle: true
+species_map:
+  NO2: no2_biob_modis
+species_type:
+  NO2: gas
+

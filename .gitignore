@@ -1,0 +1,25 @@
+# Ignore Python cache and environment files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv
+env/
+venv/
+# Ignore Jupyter and notebook checkpoints
+.ipynb_checkpoints/
+# Ignore NetCDF and output files
+*.nc
+*.h5
+*.cdf
+# Ignore images and plots
+*.png
+*.jpg
+*.jpeg
+*.svg
+# Ignore YAML config backups
+*.yaml~
+# Ignore OS files
+.DS_Store
+Thumbs.db
