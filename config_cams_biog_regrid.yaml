@@ -1,0 +1,17 @@
+# UPTEMPO Regridding Configuration
+# Edit the values below to customize your workflow
+
+year: 2024
+species:
+  - alpha-pinene
+  - beta-pinene
+  - carbon-monoxide
+  - isoprene
+  - other-monoterpenes
+CAMS_GLOB_BIOG_dir: '/glade/derecho/scratch/lacey/CAMS/'
+CAMS_grid_file: '/glade/work/lacey/PACE-MPAS-A/PythonTest/Gridinfo_CAMS-GLOB-BIOG_c20260116.nc'
+SERR_scrip_file: '/glade/campaign/ncar/nmmm0072/lacey/UPTEMPO/UPTEMPO_IndiaVR/GRID/x6.999426.India.grid.scrip.nc'
+Regridding_weights_file: '/glade/work/lacey/PACE-MPAS-A/PythonTest/ESMF_Weight_CAMSv3.1_grid_to_MPAS.x6.999426.India_c20260116.nc'
+dst_file_format: '/glade/derecho/scratch/lacey/MPAS_DEVEL/input/x6.999426.India/EMIS/CAMS-GLOB-BIOG_{year}_MPAS.x6.999426.India.grid.SPC.nc'
+inp_file_format: '/glade/derecho/scratch/lacey/CAMS/CAMS-GLOB-BIO_v3.1_SPC_2019.nc'
+sectors: []
