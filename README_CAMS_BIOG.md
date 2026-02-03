@@ -1,4 +1,4 @@
-# CAMS Anthropogenic Emissions Regridding Tool
+# CAMS Biogenic Emissions Regridding Tool
 
 ## 1. Description
 This tool regrids CAMS global biogenic emissions data to the MPAS grid using ESMF/ESMPy. It automates the process for multiple species and years, renames output variables and dimensions for MPAS compatibility, and allows easy configuration via a YAML file. Output files are post-processed for MPAS requirements, including correct variable naming, dimension renaming, and time formatting.
