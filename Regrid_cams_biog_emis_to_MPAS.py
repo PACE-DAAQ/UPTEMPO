@@ -15,12 +15,12 @@ with open('config_cams_biog_regrid.yaml', 'r') as f:
 from datetime import datetime
 from Calc_Emis import Calc_Emis_T
 from Regridding_ESMF import Add_bounds, Regridding
-from postprocess_cams_anth_to_mpas import postprocess_netcdf
+from postprocess_cams_biog_to_mpas import postprocess_netcdf
 
 ### Directory and filename setup (should only need to edit this section)
 # === User input for year ===
 year = config['year']
-# CAMS-GLOB-ANT_Glb directory
+# CAMS-GLOB-BIOG directory
 CAMS_GLOB_ANT_dir = config['CAMS_GLOB_BIOG_dir']
 CAMS_GLOB_ANT_file_list = glob.glob( CAMS_GLOB_ANT_dir + f'CAMS-GLOB-BIO_v3.1_*_2019.nc')
 # Destination filename format that regridded field will be saved

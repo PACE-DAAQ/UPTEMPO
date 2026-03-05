@@ -36,6 +36,10 @@ print(species)
 # uncomment below if you want to process all the fields/sectors in the file
 sectors = config.get('sectors', [])
 print(sectors)
+# --- optional list of sectors to subtract from the "sum" sector during postprocessing
+#     this list is read from the yaml file and passed through to the helper
+sector_exclude = config.get('sector_exclude', [])
+print(f"sector_exclude: {sector_exclude}")
 # Exsiting grid information file for base emissions
 CAMS_grid_file = config['CAMS_grid_file']
 # Regridding weight file name and logical if a new one needs to be created
@@ -77,7 +81,7 @@ for sp1 in species:
     dst_file_pattern = dst_file_base.replace('.nc', '_c*.nc')
     matching_files = glob.glob(dst_file_pattern)
     if matching_files:
-        dst_file = max(matching_files, key=os.path.getctime)
-        # Post-process the output file
-        tmp_file = dst_file + '.tmp'
-        postprocess_netcdf(dst_file, tmp_file, year, sp1)
+            dst_file = max(matching_files, key=os.path.getctime)
+            # Post-process the output file
+            tmp_file = dst_file + '.tmp'
+            postprocess_netcdf(dst_file, tmp_file, year, sp1, sector_exclude)

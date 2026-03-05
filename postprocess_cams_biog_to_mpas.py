@@ -3,39 +3,10 @@ import numpy as np
 import os
 import time
 
-def postprocess_netcdf(src_path, dst_path, year, spc, sector_exclude=None):
-    """Copy variables from *src_path* to *dst_path* renaming them
-    and optionally subtracting the contributions of a few sectors from the
-    ``sum`` variable before the file is replaced.
-
-    Parameters
-    ----------
-    src_path : str
-        Path to the ESMF-regridded netCDF file produced earlier.
-    dst_path : str
-        Temporary output path; the final file replaces the source on success.
-    year : int
-        Year used to construct the ``xtime`` variable.
-    spc : str
-        Species name (used to prefix variables).
-    sector_exclude : list of str, optional
-        Variables in the source file whose values should be subtracted from
-        the ``sum`` variable.  If ``None`` or empty, no subtraction occurs.
-    """
-    if sector_exclude is None:
-        sector_exclude = []
-
-    exclude_vars = {'time', 'lon', 'lat', 'area', 'ncol'}
+def postprocess_netcdf(src_path, dst_path, year, spc):
+    exclude_vars = {'time', 'lon', 'lat', 'area', 'ncol', 'rrfac'}
     # Open source file
     with netCDF4.Dataset(src_path, 'r') as src:
-        # read any excluded sector arrays into memory in case they need to be
-        # subtracted from ``sum`` later.  we'll create a dictionary so we can
-        # access them by name.
-        excluded_data = {}
-        for sec in sector_exclude:
-            if sec in src.variables:
-                excluded_data[sec] = src.variables[sec][:]
-
         # Create new destination file
         with netCDF4.Dataset(dst_path, 'w', format=src.file_format) as dst:
             # Dimensions
@@ -60,34 +31,22 @@ def postprocess_netcdf(src_path, dst_path, year, spc, sector_exclude=None):
             for name, var in src.variables.items():
                 if name in exclude_vars:
                     continue
-
-                # if this is the ``sum`` variable and we have exclusions, modify it
-                if name == 'sum' and excluded_data:
-                    # start with a copy of the original array
-                    data = var[:].astype('f4').copy()
-                    for sec, arr in excluded_data.items():
-                        # only subtract if the shapes match
-                        if arr.shape == data.shape:
-                            data -= arr
-                        else:
-                            # shapes mismatch; warn the user but continue
-                            print(f"warning: cannot subtract sector '{sec}' from sum "
-                                  "(shape mismatch)")
-                else:
-                    data = var[:]
-
                 if spc == 'isoprene':
-                    new_name = f'iso_anth_{name}'
-                elif spc == 'monoterpenes':
-                    new_name = f'mnt_anth_{name}'
-                else:
-                    new_name = f'{spc}_anth_{name}'
+                    new_name = f'iso_biog_megan'
+                elif spc == 'alpha-pinene':
+                    new_name = f'mnta_biog_megan'
+                elif spc == 'beta-pinene':
+                    new_name = f'mntb_biog_megan'
+                elif spc == 'other-monoterpenes':
+                    new_name = f'mnt_biog_megan'
+                elif spc == 'carbon-monoxide': 
+                    new_name = f'co_biog_megan'
                 dims = [
                     time_dim if d in ['time', 'Time'] else ncol_dim if d in ['ncol', 'nCells'] else d
                     for d in var.dimensions
                 ]
                 new_var = dst.createVariable(new_name, 'f4', tuple(dims), fill_value=np.nan)
-                new_var[:] = data
+                new_var[:] = var[:]
             # Global attributes
             dst.setncattr('authors', 'Forrest Lacey and Rajesh Kumar')
             dst.setncattr('time_created', time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()))

@@ -507,24 +507,35 @@ class Regridding(object):
         # ============================ Initial setup ============================
         # =======================================================================
         # Check whether destination grid is FV or SE(-RR)
-        dst_grid_info = xr.open_dataset( self.dst_grid_file )
-        if ('lat' in list( dst_grid_info.coords.keys() )) & \
-           ('lon' in list( dst_grid_info.coords.keys() )):
+        # opening the grid file without decoding times avoids errors when
+        # calendars or units are non-standard (e.g. "seconds since 0000-01-01"
+        # which pandas cannot handle).  this mirrors the behaviour used in
+        # Add_bounds earlier in the repository.
+        dst_grid_info = xr.open_dataset( self.dst_grid_file, decode_times=False )
+        coords = list( dst_grid_info.coords.keys() )
+        # 1. FV grid with explicit lat/lon coordinates
+        if ('lat' in coords) and ('lon' in coords):
             self.dst_type = 'FV'
-        elif list( dst_grid_info.coords.keys() ) == []:
-            if len( dst_grid_info['grid_dims'].values ) == 1:
+        # 2. SCRIP-style SE/FV grids that do not have lat/lon coords at top level
+        elif 'grid_dims' in dst_grid_info.variables:
+            gd = dst_grid_info['grid_dims'].values
+            if len(gd) == 1:
                 self.dst_type = 'SE'
-            elif len( dst_grid_info['grid_dims'].values ) == 2:
+            elif len(gd) == 2:
                 self.dst_type = 'FV'
             else:
                 raise ValueError( 'Check "grid_dims" in destination grid file!' + '\n' + \
                                   'It should be 1 (SE) or 2 (FV) dimensions' )
+        # 3. fallback: any file that defines a grid_size dimension is treated as SE
+        elif 'grid_size' in dst_grid_info.dims:
+            self.dst_type = 'SE'
         else:
             raise ValueError( 'Check destination grid file!' + '\n' + \
                               'Something wrong with lat/lon/ncol information' )
         
         # Setup dimension & shape of destination array
-        xdst_grid = xr.open_dataset( self.dst_grid_file )
+        # avoid decoding times on the grid file (calendar/unit may be invalid)
+        xdst_grid = xr.open_dataset( self.dst_grid_file, decode_times=False )
         
         self.dst_dim = []
         self.dst_shape = []
@@ -752,7 +763,8 @@ class Regridding(object):
             # =======================================================================
             if self.check_results:
                 xsrc_grid = xr.open_dataset( self.src_grid_file )
-                xdst_grid = xr.open_dataset( self.dst_grid_file )
+                # avoid decoding time units on destination grid
+                xdst_grid = xr.open_dataset( self.dst_grid_file, decode_times=False )
                 if self.src_type == 'FV':
                     src_dim_var = { 'lat':xsrc_grid['lat'].values,
                                     'lon':xsrc_grid['lon'].values }
@@ -919,7 +931,8 @@ class Regridding(object):
                     print( 'Saving NetCDF file start: ', self.Sdate )
 
                 # load grid decsription files
-                xdst_grid = xr.open_dataset( self.dst_grid_file )
+                # do not decode time axis to avoid CF decoding errors
+                xdst_grid = xr.open_dataset( self.dst_grid_file, decode_times=False )
 
                 # Open NetCDF file for writing
                 fid = Dataset( self.dst_file, 'w', format=self.nc_file_format )
@@ -1071,7 +1084,8 @@ class Regridding(object):
                 print( 'Saving NetCDF file / regridding start: ', self.SdateA )
 
             # load grid decsription files
-            xdst_grid = xr.open_dataset( self.dst_grid_file )
+            # disable time decoding on the grid file
+            xdst_grid = xr.open_dataset( self.dst_grid_file, decode_times=False )
             
             # Open NetCDF file for writing
             fid = Dataset( self.dst_file, 'w', format=self.nc_file_format )
@@ -1164,7 +1178,7 @@ class Regridding(object):
 
             if self.check_results:
                 xsrc_grid = xr.open_dataset( self.src_grid_file )
-                xdst_grid = xr.open_dataset( self.dst_grid_file )
+                xdst_grid = xr.open_dataset( self.dst_grid_file, decode_times=False )
                 if self.src_type == 'FV':
                     src_dim_var = { 'lat':xsrc_grid['lat'].values,
                                     'lon':xsrc_grid['lon'].values }

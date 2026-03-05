@@ -42,6 +42,7 @@ This YAML file defines all user-editable settings. Below is a description of the
 - `dst_file_format`: Output file name format
 - `inp_file_format`: Input file name format
 - `sectors`: List of sectors to process. Leave empty (`[]`) to process all sectors in CAMS emissions, or specify desired sectors.
+- `sector_exclude`: List of sectors from the previous field that will be removed from the `sum` sector. I.e. when using FINN emissions this should contain ['awb'] to avoid double counting agricultural burning. Leave empty if no adjustments to the 'sum' sector are needed.  
 
 Example YAML file:
 ```yaml
