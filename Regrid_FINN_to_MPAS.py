@@ -19,6 +19,10 @@ from pathlib import Path
 from datetime import datetime
 import time
 
+# NetCDF output format for MPASv8+ compiled with SMIOL library
+output_format = 'NETCDF3_64BIT_DATA' # NetCDF format (CDF-5) w/ 64-bit array
+                                     # NETCDF3_64BIT=NETCDF3_64BIT_OFFSET (CDF-2) w/ 4GB limit
+
 with open('config_finn_to_mpas.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
@@ -59,7 +63,7 @@ dst_file_dir = config['dst_file_dir']  # Output directory for NetCDF files
 mpas_grid_file = config['mpas_grid_file']  # Path to MPAS grid NetCDF file
 HOURLY = config.get('HOURLY', False)  # Whether to output hourly emissions
 lt_fac = np.array(config.get('lt_fac', [.43, .43, .43, .43, .43, .43, .43, .43, .43, 3., 6., 10., 14., 17., 14., 12., 9., 6., 3., .43, .43, .43, .43, .43]))  # Diurnal profile
-output_format = 'NETCDF3_64BIT'  # NetCDF output format (cdf5)
+
 compression = config.get('compression', {'zlib': True, 'complevel': 4, 'shuffle': True})  # NetCDF compression options
 
 
@@ -206,7 +210,8 @@ month = f"{first_file_date.month:02d}"
 mpas_grid_name = os.path.splitext(os.path.basename(mpas_grid_file))[0]
 freq = 'hourly' if HOURLY else 'daily'
 out_file = os.path.join(dst_file_dir, output_file_pattern.format(year=year, month=month, mpas_grid_name=mpas_grid_name, freq=freq))
-with Dataset(out_file, 'w', format='NETCDF3_64BIT') as dst:
+
+with Dataset(out_file, 'w', format=output_format) as dst:
     dst.createDimension('Time', None)  # Unlimited
     dst.createDimension('nCells', nCells)
     dst.createDimension('StrLen', STR_LEN)
