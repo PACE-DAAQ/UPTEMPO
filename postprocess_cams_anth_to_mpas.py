@@ -37,7 +37,7 @@ def postprocess_netcdf(src_path, dst_path, year, spc, sector_exclude=None):
                 excluded_data[sec] = src.variables[sec][:]
 
         # Create new destination file
-        with netCDF4.Dataset(dst_path, 'w', format=src.file_format) as dst:
+        with netCDF4.Dataset(dst_path, 'w', format='NETCDF3_64BIT_DATA') as dst:
             # Dimensions
             # Rename time to Time, ncol to nCells
             time_dim = 'Time' if 'time' in src.dimensions else 'Time'

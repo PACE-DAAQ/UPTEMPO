@@ -7,8 +7,9 @@ def postprocess_netcdf(src_path, dst_path, year, spc):
     exclude_vars = {'time', 'lon', 'lat', 'area', 'ncol', 'rrfac'}
     # Open source file
     with netCDF4.Dataset(src_path, 'r') as src:
+
         # Create new destination file
-        with netCDF4.Dataset(dst_path, 'w', format=src.file_format) as dst:
+        with netCDF4.Dataset(dst_path, 'w', format='NETCDF3_64BIT_DATA') as dst:
             # Dimensions
             # Rename time to Time, ncol to nCells
             time_dim = 'Time' if 'time' in src.dimensions else 'Time'
