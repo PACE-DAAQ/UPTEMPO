@@ -1,4 +1,4 @@
-# -----------------------------------------------------------------------------
+emis_file_pattern: 'GLOB_MOZ4_{year}{julianday:03d}.txt'# -----------------------------------------------------------------------------
 # 1. Read user options and configuration from YAML file
 # -----------------------------------------------------------------------------
 #!/usr/bin/env python
@@ -36,27 +36,37 @@ if not start_date or not end_date:
 start_dt = datetime.strptime(start_date, '%Y-%m-%d')
 end_dt = datetime.strptime(end_date, '%Y-%m-%d')
 
-# Build list of (year, month) tuples between start and end date
-months = []
-dt = start_dt.replace(day=1)
-while dt <= end_dt:
-    months.append((dt.year, dt.month))
-    # Go to next month
-    if dt.month == 12:
-        dt = dt.replace(year=dt.year+1, month=1)
-    else:
-        dt = dt.replace(month=dt.month+1)
+emis_file_date_pairs = []
+from dateutil.rrule import rrule, DAILY
+# Build list of all dates between start and end date (inclusive)
+all_dates = list(rrule(DAILY, dtstart=start_dt, until=end_dt))
 
 emis_file_date_pairs = []
-for year, month in months:
+for date in all_dates:
+    year = date.year
+    month = date.month
+    day = date.day
+    julianday = (date - datetime(year, 1, 1)).days + 1
     emis_dir = config['emis_dir'].format(year=year)
-    emis_file_pattern = config['emis_file_pattern'].format(year=year, month=month)
+    # Support both {month:02d} and {julianday:03d} in pattern
+    emis_file_pattern = config['emis_file_pattern'].format(year=year, month=f"{month:02d}", day=f"{day:02d}", julianday=julianday)
     for f in glob.glob(os.path.join(emis_dir, emis_file_pattern)):
-        m = re.search(r'(\d{8})', os.path.basename(f))
-        if m:
-            file_date = datetime.strptime(m.group(1), '%Y%m%d')
-            if start_dt <= file_date <= end_dt:
-                emis_file_date_pairs.append((file_date, f))
+        # Try to extract date from filename (YYYYMMDD or YYYYJJJ)
+        m_ymd = re.search(r'(\d{8})', os.path.basename(f))
+        m_jul = re.search(r'(\d{7})', os.path.basename(f))
+        file_date = None
+        if m_ymd:
+            try:
+                file_date = datetime.strptime(m_ymd.group(1), '%Y%m%d')
+            except Exception:
+                pass
+        elif m_jul:
+            try:
+                file_date = datetime.strptime(m_jul.group(1), '%Y%j')
+            except Exception:
+                pass
+        if file_date and start_dt <= file_date <= end_dt:
+            emis_file_date_pairs.append((file_date, f))
 # Sort by file_date
 emis_file_list = [f for file_date, f in sorted(emis_file_date_pairs)]
 dst_file_dir = config['dst_file_dir']  # Output directory for NetCDF files
@@ -82,11 +92,18 @@ AEROSOL_MW = 12.0  # Aerosol molecular weight (g/mole)
 STR_LEN = 64  # MPAS string length requirement
 
 def make_xtime_array(in_filename: str, hourly: bool, strlen: int = 64):
-    m = re.search(r'(\d{8})', Path(in_filename).name)
-    if not m:
-        raise ValueError("No YYYYMMDD date found in input filename.")
-    date_str = m.group(1)
-    dt = datetime.strptime(date_str, "%Y%m%d")
+    # Try YYYYMMDD first, then YYYYJJJ (Julian day)
+    m_ymd = re.search(r'(\d{8})', Path(in_filename).name)
+    m_jul = re.search(r'(\d{7})', Path(in_filename).name)
+    dt = None
+    if m_ymd:
+        date_str = m_ymd.group(1)
+        dt = datetime.strptime(date_str, "%Y%m%d")
+    elif m_jul:
+        date_str = m_jul.group(1)
+        dt = datetime.strptime(date_str, "%Y%j")
+    else:
+        raise ValueError("No YYYYMMDD or YYYYJJJ (Julian day) date found in input filename.")
     if hourly:
         ntimes = 24
         timestrs = [f"{dt.strftime('%Y-%m-%d')}_{str(h).zfill(2)}:00:00" for h in range(24)]
@@ -128,9 +145,11 @@ for csv_file in emis_file_list:
     local_hour_offset = np.round(lonCell_deg / 15.).astype(int) % 24
     lati = df["LATI"].values
     longi = df["LONGI"].values
-    co2_index = next(i for i, col in enumerate(df.columns) if "CO2" in col)
-    emission_cols = [col for col in df.columns[co2_index:] if col in species_to_map]
+    # Select all columns in df that are in species_to_map, regardless of position
+    emission_cols = [col for col in df.columns if col in species_to_map]
     emission_per_cell = {col: np.zeros(nCells) for col in emission_cols}
+    # For scalar type, also track count per cell
+    scalar_count_per_cell = {col: np.zeros(nCells, dtype=int) for col in emission_cols if species_type.get(col, None) == "scalar"}
     # Ensure longitude conventions match: convert all to -180 to 180
     def to_minus180_180(lon):
         lon = np.asarray(lon)
@@ -146,7 +165,12 @@ for csv_file in emis_file_list:
             if col not in species_map:
                 continue
             tmp = df.iloc[i][col]
-            emission_per_cell[col][min_index] += float(tmp)
+            stype = species_type.get(col, None)
+            if stype == "scalar":
+                emission_per_cell[col][min_index] += float(tmp)
+                scalar_count_per_cell[col][min_index] += 1
+            else:
+                emission_per_cell[col][min_index] += float(tmp)
     # For each emission species, convert units and apply diurnal profile
     for col, values in emission_per_cell.items():
         if col not in species_map:
@@ -165,6 +189,12 @@ for csv_file in emis_file_list:
             values_mol_s = values / SECONDS_PER_DAY
             values_molecules = values_mol_s * AVOGADRO
             values_conv = values_molecules / areaCell_cm2
+        elif stype == "scalar":
+            # Average for scalar type
+            count = scalar_count_per_cell.get(col, np.ones_like(values))
+            with np.errstate(divide='ignore', invalid='ignore'):
+                values_conv = np.true_divide(values, count)
+                values_conv[count == 0] = 0.0
         else:
             values_conv = values
 
