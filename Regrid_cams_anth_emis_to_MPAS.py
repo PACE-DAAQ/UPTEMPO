@@ -22,7 +22,8 @@ from postprocess_cams_anth_to_mpas import postprocess_netcdf
 year = config['year']
 # CAMS-GLOB-ANT_Glb directory
 CAMS_GLOB_ANT_dir = config['CAMS_GLOB_ANT_dir']
-CAMS_GLOB_ANT_file_list = glob.glob( CAMS_GLOB_ANT_dir + f'CAMS-GLOB-ANT*monthly_{year}.nc')
+inp_file_pattern = config['inp_file_format'].format(year=year).replace('SPC', '*')
+CAMS_GLOB_ANT_file_list = glob.glob(inp_file_pattern)
 # Destination filename format that regridded field will be saved
 # "SPC" will be replaced to the real species name from CAMSv4.2 species
 dst_file_format = config['dst_file_format'].format(year=year)
@@ -53,7 +54,7 @@ Add_bounds( CAMS_GLOB_ANT_file_list[0], CAMS_grid_file, creation_date=False )
 print('--- end Add_bounds')
 # ## Create weight file if you don't have one already. This is extremely useful especially when you have more than two files to be processed
 if need_weights:
-    ds_CAMS = xr.open_dataset(CAMS_GLOB_ANT_file_list[0])
+    ds_CAMS = xr.open_dataset(CAMS_GLOB_ANT_file_list[0], decode_times=False)
     print('--- begin regridding')
     #For MPAS:
     rr = Regridding( ds_CAMS.isel(time=slice(0,1)), src_grid_file=CAMS_grid_file, dst_grid_file=SERR_scrip_file, 
