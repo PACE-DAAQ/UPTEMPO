@@ -22,7 +22,8 @@ from postprocess_cams_biog_to_mpas import postprocess_netcdf
 year = config['year']
 # CAMS-GLOB-BIOG directory
 CAMS_GLOB_ANT_dir = config['CAMS_GLOB_BIOG_dir']
-CAMS_GLOB_ANT_file_list = glob.glob( CAMS_GLOB_ANT_dir + f'CAMS-GLOB-BIO_v3.1_*_2019.nc')
+inp_file_pattern = config['inp_file_format'].replace('SPC', '*')
+CAMS_GLOB_ANT_file_list = glob.glob(inp_file_pattern)
 # Destination filename format that regridded field will be saved
 # "SPC" will be replaced to the real species name from CAMSv4.2 species
 dst_file_format = config['dst_file_format'].format(year=year)

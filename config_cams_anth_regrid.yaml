@@ -3,21 +3,20 @@
 
 year: 2024
 species:
-  - bc
-  - co
-  - nh3
-  - oc
-  - so2
-  - nox
+  - black-carbon
+  - organic-carbon
+  - ammonia
+  - carbon-monoxide
+  - sulphur-dioxide
   - isoprene
   - monoterpenes
-CAMS_GLOB_ANT_dir: '/glade/work/sshams/CAMS_glob_ant/monthly/'
-CAMS_grid_file: '/glade/work/lacey/PACE-MPAS-A/PythonTest/Gridinfo_CAMS-GLOB-ANT_c20240709.nc'
-SERR_scrip_file: '/glade/campaign/ncar/nmmm0072/lacey/UPTEMPO/UPTEMPO_NOV/mpas_scrip.163842.nc'
-Regridding_weights_file: '/glade/derecho/scratch/lacey/MPAS_DEVEL/UPTEMPO_Mods/EXCLUDE_VARS/ESMF_Weight_CAMSv5.1_grid_to_MPAS.x1.163842.c20260218.nc'
-dst_file_format: '/glade/derecho/scratch/lacey/MPAS_DEVEL/UPTEMPO_Mods/EXCLUDE_VARS/EMIS/CAMS-GLOB-ANT_{year}_MPAS.x1.163842.grid.SPC.nc'
-inp_file_format: '/glade/work/sshams/CAMS_glob_ant/monthly/CAMS-GLOB-ANT_Glb_0.1x0.1_anthro_SPC_v5.3_monthly_{year}.nc'
-sectors: ['awb','res','sum']
+CAMS_GLOB_ANT_dir: '/glade/derecho/scratch/lacey/MPAS_DEVEL/CAMS/'
+CAMS_grid_file: '/glade/campaign/acom/MUSICA/MPAS/input/Gridinfo_CAMS-GLOB-ANT_c20240709.nc'
+SERR_scrip_file: '/glade/campaign/acom/MUSICA/MPAS/input/mpas_scrip.163842.nc'
+Regridding_weights_file: '/glade/derecho/scratch/lacey/UPTEMPO/EMIS/ESMF_Weight_CAMSv6.2_grid_to_MPAS.x1.163842.c20260417.nc'
+dst_file_format: '/glade/derecho/scratch/lacey/UPTEMPO/EMIS/CAMS-GLOB-ANT_{year}_MPAS.x1.163842.grid.SPC.nc'
+inp_file_format: '/glade/derecho/scratch/lacey/MPAS_DEVEL/CAMS/CAMS-GLOB-ANT_v6.2_SPC_{year}.nc'
+sectors: []
 sector_exclude: ['awb']
 
 # list of sectors to subtract from ``sum`` when creating the MPAS file.
