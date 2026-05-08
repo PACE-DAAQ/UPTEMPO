@@ -42,6 +42,8 @@ def postprocess_netcdf(src_path, dst_path, year, spc):
                     new_name = f'mnt_biog_megan'
                 elif spc == 'carbon-monoxide': 
                     new_name = f'co_biog_megan'
+                else:
+                    new_name = f'{spc}_biog_megan'
                 dims = [
                     time_dim if d in ['time', 'Time'] else ncol_dim if d in ['ncol', 'nCells'] else d
                     for d in var.dimensions

@@ -20,18 +20,26 @@ from postprocess_cams_biog_to_mpas import postprocess_netcdf
 ### Directory and filename setup (should only need to edit this section)
 # === User input for year ===
 year = config['year']
-# CAMS-GLOB-BIOG directory
-CAMS_GLOB_ANT_dir = config['CAMS_GLOB_BIOG_dir']
+# Input file format and list for CAMS anthropogenic emissions (CAMS-GLOB-BIO)
 inp_file_pattern = config['inp_file_format'].replace('SPC', '*')
-CAMS_GLOB_ANT_file_list = glob.glob(inp_file_pattern)
+CAMS_GLOB_BIO_file_list = glob.glob(inp_file_pattern)
 # Destination filename format that regridded field will be saved
 # "SPC" will be replaced to the real species name from CAMSv4.2 species
 dst_file_format = config['dst_file_format'].format(year=year)
 # SE-RR grid file (or any destination grid file)
 SERR_scrip_file = config['SERR_scrip_file']
-# list of the species that will processed fron the input emission files
-species = config['species']
-print(species)
+# species mapping: input name to output name
+species_map = {}
+for item in config['species']:
+    if isinstance(item, dict):
+        species_map.update(item)
+    elif isinstance(item, str) and ':' in item:
+        k, v = [s.strip() for s in item.split(':', 1)]
+        species_map[k] = v
+    else:
+        # fallback: treat as identity mapping
+        species_map[item] = item
+print('species_map:', species_map)
 # uncomment below if you want to process only some fields/sectors of the file
 #sectors = ['sum']
 # uncomment below if you want to process all the fields/sectors in the file
@@ -46,11 +54,25 @@ need_weights = not os.path.exists(Regridding_weights_file)
 inp_file_format = config['inp_file_format']
 ### Directory and filename setup section end (NO updates needed after this point)
 # ## Make grid information NetCDF file (if "lon_bnds" and "lat_bnds" are not available for FV grid input)
-Add_bounds( CAMS_GLOB_ANT_file_list[0], CAMS_grid_file, creation_date=False )
-print('--- end Add_bounds')
+def grid_file_has_bounds(grid_file):
+    if not os.path.exists(grid_file):
+        return False
+    try:
+        with netCDF4.Dataset(grid_file, 'r') as ds:
+            return ('lat_bnds' in ds.variables) and ('lon_bnds' in ds.variables)
+    except Exception as e:
+        print(f"Error reading {grid_file}: {e}")
+        return False
+
+need_grid_bounds = not grid_file_has_bounds(CAMS_grid_file)
+if need_grid_bounds:
+    Add_bounds(CAMS_GLOB_BIO_file_list[0], CAMS_grid_file, creation_date=False)
+    print('--- ran Add_bounds')
+else:
+    print(f'--- using existing grid file with bounds: {CAMS_grid_file}')
 # ## Create weight file if you don't have one already. This is extremely useful especially when you have more than two files to be processed
 if need_weights:
-    ds_CAMS = xr.open_dataset(CAMS_GLOB_ANT_file_list[0], decode_times=False)
+    ds_CAMS = xr.open_dataset(CAMS_GLOB_BIO_file_list[0], decode_times=False)
     ds_CAMS = ds_CAMS.drop_vars(['emiss_bio', 'TSTEP'])
     print('--- begin regridding')
     #For MPAS:
@@ -60,13 +82,12 @@ if need_weights:
     print('--- end regridding')
 else: 
     print('--- will use existing weighting file ', Regridding_weights_file)
-for sp1 in species:
-    print( 'Regridding: ', sp1, datetime.now() )
+for input_name, output_name in species_map.items():
+    print( f'Regridding: {input_name} → {output_name}', datetime.now() )
     print( '************************************************************************' )
-    #ds_emis = xr.open_dataset( '/glade/work/sshams/CAMS_glob_ant/monthly/CAMS-GLOB-ANT_Glb_0.1x0.1_anthro_co_v5.3_monthly_2000.nc' )  
-    ds_emis = xr.open_dataset(inp_file_format.format(year=year).replace('SPC', sp1), decode_times=False)
+    ds_emis = xr.open_dataset(inp_file_format.format(year=year).replace('SPC', input_name), decode_times=False)
     ds_emis = ds_emis.drop_vars(['emiss_bio', 'TSTEP'])
-    dst_file_base = dst_file_format.replace('SPC', sp1)
+    dst_file_base = dst_file_format.replace('SPC', output_name)
     # Only create the output file with the date suffix (no undated file)
     rr = Regridding( ds_emis, src_grid_file=CAMS_grid_file, dst_grid_file=SERR_scrip_file,
                      wgt_file=Regridding_weights_file, method='Conserve', fields=sectors,
@@ -83,4 +104,4 @@ for sp1 in species:
         dst_file = max(matching_files, key=os.path.getctime)
         # Post-process the output file
         tmp_file = dst_file + '.tmp'
-        postprocess_netcdf(dst_file, tmp_file, year, sp1)
+        postprocess_netcdf(dst_file, tmp_file, year, output_name)
