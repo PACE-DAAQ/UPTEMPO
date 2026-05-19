@@ -149,10 +149,18 @@ if file_type not in {'daily', 'annual'}:
     raise ValueError("file_type must be either 'daily' or 'annual'.")
 
 annual_date_column = config.get('annual_date_column', None)
-annual_date_columns = config.get(
-    'annual_date_columns',
-    ['DAY', 'DATE', 'day', 'date', 'YYYYMMDD', 'yyyymmdd', 'DATE_ID', 'date_id']
-)
+# Preferred simplified option: annual_date_column may be either a string or a list.
+# Backward compatibility: if legacy annual_date_columns is provided, use it as fallback.
+if isinstance(annual_date_column, list):
+    annual_date_candidates = annual_date_column
+elif isinstance(annual_date_column, str) and annual_date_column.strip():
+    annual_date_candidates = [annual_date_column.strip()]
+else:
+    legacy_cols = config.get('annual_date_columns', None)
+    if isinstance(legacy_cols, list) and legacy_cols:
+        annual_date_candidates = legacy_cols
+    else:
+        annual_date_candidates = ['DAY', 'DATE', 'day', 'date', 'YYYYMMDD', 'yyyymmdd', 'DATE_ID', 'date_id']
 annual_date_formats = config.get('annual_date_formats', ['%Y%m%d', '%Y-%m-%d', '%Y/%m/%d', '%Y%j'])
 annual_day_mode = str(config.get('annual_day_mode', 'auto')).strip().lower()
 if annual_day_mode not in {'auto', 'doy', 'dom'}:
@@ -328,7 +336,7 @@ else:
         print(f"Processing annual FINN file: {csv_file}")
         header_df = pd.read_csv(csv_file, header=0, index_col=False, nrows=0)
         header_df = header_df.loc[:, ~header_df.columns.str.contains('^Unnamed')]
-        date_col = find_date_column(header_df.columns, preferred_column=annual_date_column, candidates=annual_date_columns)
+        date_col = find_date_column(header_df.columns, candidates=annual_date_candidates)
         if date_col is None:
             raise KeyError(
                 f"Could not find annual date column in {csv_file}. "

@@ -4,8 +4,8 @@ file_type: 'daily'         # 'daily' (date in filename) or 'annual' (date inside
 emis_dir: '/glade/derecho/scratch/lacey/PACE/FINNv2.5/{year}/'
 emis_file_pattern: 'FINNv2.5.1_modvrs_nrt_MOZART_{year}{month}*.txt'
 # For annual file_type, optionally set:
-# annual_date_column: 'DAY'
-# annual_date_columns: ['DAY', 'DATE', 'YYYYMMDD']
+# annual_date_column: 'DAY'  # Single explicit date column
+# annual_date_column: ['DAY', 'DATE', 'YYYYMMDD']  # Try in order until a match is found
 # annual_date_formats: ['%Y%m%d', '%Y-%m-%d', '%Y/%m/%d', '%Y%j']
 dst_file_dir: '/glade/derecho/scratch/lacey/MPAS_DEVEL/input/daily/NovTest/'
 output_file_pattern: 'FINNv2.5.1_modvrs_nrt_MOZART_{year}{month}_{mpas_grid_name}_{freq}_NO2.nc'

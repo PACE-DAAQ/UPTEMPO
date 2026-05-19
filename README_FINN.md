@@ -38,8 +38,7 @@ Key entries:
 - `file_type`: Set to `daily` (date from filename) or `annual` (date from a column in each annual file)
 - `emis_dir`: Directory containing FINN CSV files
 - `emis_file_pattern`: Search pattern for FINN files (e.g., `*.csv`)
-- `annual_date_column` (optional): Explicit date column name for annual files (e.g., `DAY`)
-- `annual_date_columns` (optional): Candidate annual date column names to try automatically
+- `annual_date_column` (optional): Annual date column selector. Use either a single column name (e.g., `DAY`) or a list of candidate names to try in order.
 - `annual_date_formats` (optional): Accepted annual date formats (defaults include `%Y%m%d` and `%Y%j`)
 - `dst_file_dir`: Output directory for NetCDF files
 - `mpas_grid_file`: Path to MPAS grid NetCDF file
@@ -64,8 +63,7 @@ Key entries:
 - `file_type`: Set to `daily` (date from filename) or `annual` (date from a column in each annual file)
 - `emis_dir`: Directory containing FINN CSV files
 - `emis_file_pattern`: Glob pattern for FINN files (e.g., `*.csv`)
-- `annual_date_column` (optional): Explicit date column name for annual files (e.g., `DAY`)
-- `annual_date_columns` (optional): Candidate annual date column names to try automatically
+- `annual_date_column` (optional): Annual date column selector. Use either a single column name (e.g., `DAY`) or a list of candidate names to try in order.
 - `annual_date_formats` (optional): Accepted annual date formats (defaults include `%Y%m%d` and `%Y%j`)
 - `dst_file_dir`: Output directory for NetCDF files
 - `mpas_grid_file`: Path to MPAS grid NetCDF file
