@@ -35,8 +35,11 @@ If you need `pathlib` (usually included with Python 3.4+), it will be available 
 ## 4. YAML Configuration (`config_finn_to_mpas.yaml`)
 
 Key entries:
+- `file_type`: Set to `daily` (date from filename) or `annual` (date from a column in each annual file)
 - `emis_dir`: Directory containing FINN CSV files
 - `emis_file_pattern`: Search pattern for FINN files (e.g., `*.csv`)
+- `annual_date_column` (optional): Annual date column selector. Use either a single column name (e.g., `DAY`) or a list of candidate names to try in order.
+- `annual_date_formats` (optional): Accepted annual date formats (defaults include `%Y%m%d` and `%Y%j`)
 - `dst_file_dir`: Output directory for NetCDF files
 - `mpas_grid_file`: Path to MPAS grid NetCDF file
 - `lt_fac`: Diurnal profile array (length 24, sums to 100)
@@ -57,8 +60,11 @@ Key entries:
 
 ## YAML Configuration (`config_finn_to_mpas.yaml`)
 Key entries:
+- `file_type`: Set to `daily` (date from filename) or `annual` (date from a column in each annual file)
 - `emis_dir`: Directory containing FINN CSV files
 - `emis_file_pattern`: Glob pattern for FINN files (e.g., `*.csv`)
+- `annual_date_column` (optional): Annual date column selector. Use either a single column name (e.g., `DAY`) or a list of candidate names to try in order.
+- `annual_date_formats` (optional): Accepted annual date formats (defaults include `%Y%m%d` and `%Y%j`)
 - `dst_file_dir`: Output directory for NetCDF files
 - `mpas_grid_file`: Path to MPAS grid NetCDF file
 - `lt_fac`: Diurnal profile array (length 24, sums to 100)

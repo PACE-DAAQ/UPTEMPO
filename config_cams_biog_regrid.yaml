@@ -3,13 +3,12 @@
 
 year: 2024
 species:
-  - alpha-pinene
-  - beta-pinene
-  - carbon-monoxide
-  - isoprene
-  - other-monoterpenes
-CAMS_GLOB_BIOG_dir: '/glade/campaign/acom/MUSICA/MPAS/input/EMIS/CAMS_BIOG/'
-CAMS_grid_file: '/glade/campaign/acom/MUSICA/MPAS/input/Gridinfo_CAMS-GLOB-BIOG_c20260116.nc'
+  - alpha-pinene: mnta
+  - beta-pinene: mntb
+  - carbon-monoxide: co
+  - isoprene: iso
+  - other-monoterpenes: mnt
+CAMS_grid_file: '/glade/derecho/scratch/lacey/UPTEMPO/EMIS/Gridinfo_CAMS-GLOB-BIOG_c20260116.nc'
 SERR_scrip_file: '/glade/campaign/acom/MUSICA/MPAS/input/mpas_scrip.163842.nc'
 Regridding_weights_file: '/glade/derecho/scratch/lacey/UPTEMPO/EMIS/ESMF_Weight_CAMSv3.1_grid_to_MPAS.163842.c20260416.nc'
 dst_file_format: '/glade/derecho/scratch/lacey/UPTEMPO/EMIS/CAMS-GLOB-BIOG_{year}_MPAS.163842.SPC.nc'

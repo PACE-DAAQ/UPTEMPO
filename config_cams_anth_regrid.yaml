@@ -1,19 +1,18 @@
 # UPTEMPO Regridding Configuration
 # Edit the values below to customize your workflow
 
-year: 2024
+year: 2019
 species:
-  - black-carbon
-  - organic-carbon
-  - ammonia
-  - carbon-monoxide
-  - sulphur-dioxide
-  - isoprene
-  - monoterpenes
-CAMS_GLOB_ANT_dir: '/glade/derecho/scratch/lacey/MPAS_DEVEL/CAMS/'
-CAMS_grid_file: '/glade/campaign/acom/MUSICA/MPAS/input/Gridinfo_CAMS-GLOB-ANT_c20240709.nc'
+  - black-carbon: bc
+#  - organic-carbon: oc
+#  - ammonia: nh3
+#  - carbon-monoxide: co
+#  - sulphur-dioxide: so2
+#  - isoprene: iso
+#  - monoterpenes: mnt
+CAMS_grid_file: '/glade/derecho/scratch/lacey/UPTEMPO/EMIS/Gridinfo_CAMS-GLOB-ANT_c20260508.nc'
 SERR_scrip_file: '/glade/campaign/acom/MUSICA/MPAS/input/mpas_scrip.163842.nc'
-Regridding_weights_file: '/glade/derecho/scratch/lacey/UPTEMPO/EMIS/ESMF_Weight_CAMSv6.2_grid_to_MPAS.x1.163842.c20260417.nc'
+Regridding_weights_file: '/glade/derecho/scratch/lacey/UPTEMPO/EMIS/ESMF_Weight_CAMSv6.2_grid_to_MPAS.x1.163842.c20260508.nc'
 dst_file_format: '/glade/derecho/scratch/lacey/UPTEMPO/EMIS/CAMS-GLOB-ANT_{year}_MPAS.x1.163842.grid.SPC.nc'
 inp_file_format: '/glade/derecho/scratch/lacey/MPAS_DEVEL/CAMS/CAMS-GLOB-ANT_v6.2_SPC_{year}.nc'
 sectors: []

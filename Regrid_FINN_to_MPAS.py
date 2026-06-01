@@ -1,4 +1,4 @@
-emis_file_pattern: 'GLOB_MOZ4_{year}{julianday:03d}.txt'# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # 1. Read user options and configuration from YAML file
 # -----------------------------------------------------------------------------
 #!/usr/bin/env python
@@ -18,14 +18,120 @@ import re
 from pathlib import Path
 from datetime import datetime
 import time
+import argparse
+import sys
 
-# NetCDF output format for MPASv8+ compiled with SMIOL library
-output_format = 'NETCDF3_64BIT_DATA' # NetCDF format (CDF-5) w/ 64-bit array
-                                     # NETCDF3_64BIT=NETCDF3_64BIT_OFFSET (CDF-2) w/ 4GB limit
 
-with open('config_finn_to_mpas.yaml', 'r') as f:
-    config = yaml.safe_load(f)
+def extract_date_from_filename(file_path: str):
+    """Extract a date from filename using YYYYMMDD or YYYYDDD patterns."""
+    name = Path(file_path).name
+    m_ymd = re.search(r'(\d{8})', name)
+    if m_ymd:
+        return datetime.strptime(m_ymd.group(1), "%Y%m%d")
+    m_ydoy = re.search(r'(\d{7})', name)
+    if m_ydoy:
+        try:
+            return datetime.strptime(m_ydoy.group(1), "%Y%j")
+        except ValueError:
+            return None
+    return None
 
+
+def make_xtime_array(date_obj: datetime, hourly: bool, strlen: int = 64):
+    if hourly:
+        ntimes = 24
+        timestrs = [f"{date_obj.strftime('%Y-%m-%d')}_{str(h).zfill(2)}:00:00" for h in range(24)]
+    else:
+        ntimes = 1
+        timestrs = [date_obj.strftime('%Y-%m-%d_00:00:00')]
+    xtime_arr = np.zeros((ntimes, strlen), dtype='S1')
+    for i, s in enumerate(timestrs):
+        s_padded = s.ljust(strlen, '\0')
+        s_bytes = np.array(list(s_padded), dtype='S1')
+        xtime_arr[i, :] = s_bytes
+    return xtime_arr
+
+
+def find_date_column(df_columns, preferred_column=None, candidates=None):
+    """Find annual FINN date column by exact or case-insensitive match."""
+    if preferred_column and preferred_column in df_columns:
+        return preferred_column
+
+    lowered = {col.lower(): col for col in df_columns}
+    if preferred_column and preferred_column.lower() in lowered:
+        return lowered[preferred_column.lower()]
+
+    candidates = candidates or []
+    for cand in candidates:
+        if cand in df_columns:
+            return cand
+        if cand.lower() in lowered:
+            return lowered[cand.lower()]
+    return None
+
+
+def parse_annual_dates(date_series, date_formats):
+    """Parse mixed annual FINN date column values into pandas Timestamps."""
+    s = date_series.astype(str).str.strip()
+    parsed = pd.Series(pd.NaT, index=s.index)
+    for fmt in date_formats:
+        newly = pd.to_datetime(s, format=fmt, errors='coerce')
+        parsed = parsed.fillna(newly)
+    parsed = parsed.fillna(pd.to_datetime(s, errors='coerce'))
+    return parsed
+
+
+def extract_year_from_filename(file_path: str):
+    """Extract a plausible year from filename."""
+    m = re.search(r'(19\d{2}|20\d{2})', Path(file_path).name)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+def parse_numeric_annual_day(date_series, fallback_year, mode='auto'):
+    """Parse numeric annual day values as DOY or DOM.
+
+    auto mode infers DOY when max value is > 31.
+    """
+    nums = pd.to_numeric(date_series, errors='coerce')
+    parsed = pd.Series(pd.NaT, index=nums.index)
+    valid = nums.notna()
+    if not np.any(valid):
+        return parsed
+
+    nums_valid = nums[valid].astype(int)
+    use_mode = mode
+    if use_mode == 'auto':
+        use_mode = 'doy' if nums_valid.max() > 31 else 'dom'
+
+    if use_mode == 'doy':
+        yyyyddd = nums_valid.map(lambda d: f"{fallback_year}{int(d):03d}")
+        parsed_valid = pd.to_datetime(yyyyddd, format='%Y%j', errors='coerce')
+        parsed.loc[valid] = parsed_valid
+    elif use_mode == 'dom':
+        # Fallback DOM interpretation: use January in fallback year.
+        # Most annual FINN files use DOY; this only supports simple DOM cases.
+        yyyymmdd = nums_valid.map(lambda d: f"{fallback_year}01{int(d):02d}")
+        parsed_valid = pd.to_datetime(yyyymmdd, format='%Y%m%d', errors='coerce')
+        parsed.loc[valid] = parsed_valid
+
+    return parsed
+
+# Set up the argument parser
+parser = argparse.ArgumentParser(description="Process WRF-Chem data and calculate zonal stats.")
+parser.add_argument("config", help="Path to the user-defined YAML configuration file")
+
+# Parse the arguments
+args = parser.parse_args()
+
+# Open the user-defined YAML file
+try:
+    with open(args.config, "r") as f:
+        config = yaml.safe_load(f)
+except FileNotFoundError:
+    print(f"Error: The file '{args.config}' was not found.")
+    sys.exit(1)
 
 # Get year and month from start_date and end_date
 from datetime import datetime, timedelta
@@ -35,45 +141,76 @@ if not start_date or not end_date:
     raise ValueError('start_date and end_date must be specified in the config file.')
 start_dt = datetime.strptime(start_date, '%Y-%m-%d')
 end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+if end_dt < start_dt:
+    raise ValueError('end_date must be greater than or equal to start_date.')
 
-emis_file_date_pairs = []
-from dateutil.rrule import rrule, DAILY
-# Build list of all dates between start and end date (inclusive)
-all_dates = list(rrule(DAILY, dtstart=start_dt, until=end_dt))
+file_type = str(config.get('file_type', 'daily')).strip().lower()
+if file_type not in {'daily', 'annual'}:
+    raise ValueError("file_type must be either 'daily' or 'annual'.")
 
-emis_file_date_pairs = []
-for date in all_dates:
-    year = date.year
-    month = date.month
-    day = date.day
-    julianday = (date - datetime(year, 1, 1)).days + 1
-    emis_dir = config['emis_dir'].format(year=year)
-    # Support both {month:02d} and {julianday:03d} in pattern
-    emis_file_pattern = config['emis_file_pattern'].format(year=year, month=f"{month:02d}", day=f"{day:02d}", julianday=julianday)
-    for f in glob.glob(os.path.join(emis_dir, emis_file_pattern)):
-        # Try to extract date from filename (YYYYMMDD or YYYYJJJ)
-        m_ymd = re.search(r'(\d{8})', os.path.basename(f))
-        m_jul = re.search(r'(\d{7})', os.path.basename(f))
-        file_date = None
-        if m_ymd:
-            try:
-                file_date = datetime.strptime(m_ymd.group(1), '%Y%m%d')
-            except Exception:
-                pass
-        elif m_jul:
-            try:
-                file_date = datetime.strptime(m_jul.group(1), '%Y%j')
-            except Exception:
-                pass
-        if file_date and start_dt <= file_date <= end_dt:
-            emis_file_date_pairs.append((file_date, f))
-# Sort by file_date
-emis_file_list = [f for file_date, f in sorted(emis_file_date_pairs)]
+annual_date_column = config.get('annual_date_column', None)
+# Preferred simplified option: annual_date_column may be either a string or a list.
+# Backward compatibility: if legacy annual_date_columns is provided, use it as fallback.
+if isinstance(annual_date_column, list):
+    annual_date_candidates = annual_date_column
+elif isinstance(annual_date_column, str) and annual_date_column.strip():
+    annual_date_candidates = [annual_date_column.strip()]
+else:
+    legacy_cols = config.get('annual_date_columns', None)
+    if isinstance(legacy_cols, list) and legacy_cols:
+        annual_date_candidates = legacy_cols
+    else:
+        annual_date_candidates = ['DAY', 'DATE', 'day', 'date', 'YYYYMMDD', 'yyyymmdd', 'DATE_ID', 'date_id']
+annual_date_formats = config.get('annual_date_formats', ['%Y%m%d', '%Y-%m-%d', '%Y/%m/%d', '%Y%j'])
+annual_day_mode = str(config.get('annual_day_mode', 'auto')).strip().lower()
+if annual_day_mode not in {'auto', 'doy', 'dom'}:
+    raise ValueError("annual_day_mode must be one of 'auto', 'doy', or 'dom'.")
+annual_reference_year = config.get('annual_reference_year', None)
+annual_chunksize = int(config.get('annual_chunksize', 250000))
+
+# Build emission file lists depending on input file type
+emis_file_date_pairs = []  # Used for daily mode
+emis_file_list = []
+if file_type == 'daily':
+    months = []
+    dt = start_dt.replace(day=1)
+    while dt <= end_dt:
+        months.append((dt.year, dt.month))
+        # Go to next month
+        if dt.month == 12:
+            dt = dt.replace(year=dt.year + 1, month=1)
+        else:
+            dt = dt.replace(month=dt.month + 1)
+
+    for year, month in months:
+        emis_dir = config['emis_dir'].format(year=year)
+        emis_file_pattern = config['emis_file_pattern'].format(year=year, month=month)
+        for f in glob.glob(os.path.join(emis_dir, emis_file_pattern)):
+            file_date = extract_date_from_filename(f)
+            if file_date is not None and start_dt <= file_date <= end_dt:
+                emis_file_date_pairs.append((file_date, f))
+    emis_file_date_pairs = sorted(emis_file_date_pairs)
+    emis_file_list = [f for file_date, f in emis_file_date_pairs]
+else:
+    years = range(start_dt.year, end_dt.year + 1)
+    found_files = set()
+    for year in years:
+        format_kwargs = {'year': year, 'month': '*', 'day': '*'}
+        emis_dir = config['emis_dir'].format(**format_kwargs)
+        emis_file_pattern = config['emis_file_pattern'].format(**format_kwargs)
+        for f in glob.glob(os.path.join(emis_dir, emis_file_pattern)):
+            found_files.add(f)
+    emis_file_list = sorted(found_files)
+
+if not emis_file_list:
+    raise FileNotFoundError(
+        f"No FINN input files found for file_type='{file_type}' between {start_date} and {end_date}."
+    )
 dst_file_dir = config['dst_file_dir']  # Output directory for NetCDF files
 mpas_grid_file = config['mpas_grid_file']  # Path to MPAS grid NetCDF file
 HOURLY = config.get('HOURLY', False)  # Whether to output hourly emissions
 lt_fac = np.array(config.get('lt_fac', [.43, .43, .43, .43, .43, .43, .43, .43, .43, 3., 6., 10., 14., 17., 14., 12., 9., 6., 3., .43, .43, .43, .43, .43]))  # Diurnal profile
-
+output_format = 'NETCDF3_64BIT'  # NetCDF output format (cdf5)
 compression = config.get('compression', {'zlib': True, 'complevel': 4, 'shuffle': True})  # NetCDF compression options
 
 
@@ -91,32 +228,6 @@ AEROSOL_MW = 12.0  # Aerosol molecular weight (g/mole)
 
 STR_LEN = 64  # MPAS string length requirement
 
-def make_xtime_array(in_filename: str, hourly: bool, strlen: int = 64):
-    # Try YYYYMMDD first, then YYYYJJJ (Julian day)
-    m_ymd = re.search(r'(\d{8})', Path(in_filename).name)
-    m_jul = re.search(r'(\d{7})', Path(in_filename).name)
-    dt = None
-    if m_ymd:
-        date_str = m_ymd.group(1)
-        dt = datetime.strptime(date_str, "%Y%m%d")
-    elif m_jul:
-        date_str = m_jul.group(1)
-        dt = datetime.strptime(date_str, "%Y%j")
-    else:
-        raise ValueError("No YYYYMMDD or YYYYJJJ (Julian day) date found in input filename.")
-    if hourly:
-        ntimes = 24
-        timestrs = [f"{dt.strftime('%Y-%m-%d')}_{str(h).zfill(2)}:00:00" for h in range(24)]
-    else:
-        ntimes = 1
-        timestrs = [dt.strftime('%Y-%m-%d_00:00:00')]
-    xtime_arr = np.zeros((ntimes, strlen), dtype='S1')
-    for i, s in enumerate(timestrs):
-        s_padded = s.ljust(strlen, '\0')
-        s_bytes = np.array(list(s_padded), dtype='S1')
-        xtime_arr[i, :] = s_bytes
-    return xtime_arr
-
 
 
 
@@ -131,25 +242,35 @@ nCells = ds.sizes["nCells"]
 
 # Prepare output arrays
 all_xtime = []
+processed_dates = []
 species_arrays = {species_map[col]: [] for col in species_to_map if col in species_map and species_map[col] != "co2_biob_modis"}
 
-for csv_file in emis_file_list:
-    print(f"Processing FINN file: {csv_file}")
+def process_one_day(df, current_date):
     # Modified read statement to accomodate FINNv1 fortran format strings FGL
-    df = pd.read_csv(csv_file, header=0, index_col=False)
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
     for col in df.columns:
         df[col] = (df[col].astype(str).str.replace('D', 'E', regex=False).str.replace('d', 'E', regex=False))
-        df[col] = pd.to_numeric(df[col], errors='ignore')
+        if col not in {'LATI', 'LONGI'}:
+            df[col] = pd.to_numeric(df[col], errors='ignore')
+
+    if 'LATI' not in df.columns or 'LONGI' not in df.columns:
+        raise KeyError("Input FINN file is missing required LATI/LONGI columns.")
+
     # Compute local hour offset for each cell (in hours, rounded to nearest int)
     local_hour_offset = np.round(lonCell_deg / 15.).astype(int) % 24
-    lati = df["LATI"].values
-    longi = df["LONGI"].values
-    # Select all columns in df that are in species_to_map, regardless of position
-    emission_cols = [col for col in df.columns if col in species_to_map]
+    lati = pd.to_numeric(df["LATI"], errors='coerce').values
+    longi = pd.to_numeric(df["LONGI"], errors='coerce').values
+
+    valid_geo = np.isfinite(lati) & np.isfinite(longi)
+    if not np.any(valid_geo):
+        return
+    df = df.loc[valid_geo].reset_index(drop=True)
+    lati = lati[valid_geo]
+    longi = longi[valid_geo]
+
+    co2_index = next(i for i, col in enumerate(df.columns) if "CO2" in col)
+    emission_cols = [col for col in df.columns[co2_index:] if col in species_to_map]
     emission_per_cell = {col: np.zeros(nCells) for col in emission_cols}
-    # For scalar type, also track count per cell
-    scalar_count_per_cell = {col: np.zeros(nCells, dtype=int) for col in emission_cols if species_type.get(col, None) == "scalar"}
     # Ensure longitude conventions match: convert all to -180 to 180
     def to_minus180_180(lon):
         lon = np.asarray(lon)
@@ -164,12 +285,8 @@ for csv_file in emis_file_list:
         for col in emission_cols:
             if col not in species_map:
                 continue
-            tmp = df.iloc[i][col]
-            stype = species_type.get(col, None)
-            if stype == "scalar":
-                emission_per_cell[col][min_index] += float(tmp)
-                scalar_count_per_cell[col][min_index] += 1
-            else:
+            tmp = pd.to_numeric(df.iloc[i][col], errors='coerce')
+            if pd.notna(tmp):
                 emission_per_cell[col][min_index] += float(tmp)
     # For each emission species, convert units and apply diurnal profile
     for col, values in emission_per_cell.items():
@@ -189,12 +306,6 @@ for csv_file in emis_file_list:
             values_mol_s = values / SECONDS_PER_DAY
             values_molecules = values_mol_s * AVOGADRO
             values_conv = values_molecules / areaCell_cm2
-        elif stype == "scalar":
-            # Average for scalar type
-            count = scalar_count_per_cell.get(col, np.ones_like(values))
-            with np.errstate(divide='ignore', invalid='ignore'):
-                values_conv = np.true_divide(values, count)
-                values_conv[count == 0] = 0.0
         else:
             values_conv = values
 
@@ -208,9 +319,62 @@ for csv_file in emis_file_list:
             species_arrays[var_name].append(hourly_values)
         else:
             species_arrays[var_name].append(values_conv)
-    # Add xtime for this file
-    xtime_arr = make_xtime_array(csv_file, HOURLY, STR_LEN)
+
+    # Add xtime for this day
+    xtime_arr = make_xtime_array(current_date, HOURLY, STR_LEN)
     all_xtime.append(xtime_arr)
+    processed_dates.append(current_date)
+
+
+if file_type == 'daily':
+    for file_date, csv_file in emis_file_date_pairs:
+        print(f"Processing FINN file: {csv_file}")
+        df = pd.read_csv(csv_file, header=0, index_col=False)
+        process_one_day(df, file_date)
+else:
+    for csv_file in emis_file_list:
+        print(f"Processing annual FINN file: {csv_file}")
+        header_df = pd.read_csv(csv_file, header=0, index_col=False, nrows=0)
+        header_df = header_df.loc[:, ~header_df.columns.str.contains('^Unnamed')]
+        date_col = find_date_column(header_df.columns, candidates=annual_date_candidates)
+        if date_col is None:
+            raise KeyError(
+                f"Could not find annual date column in {csv_file}. "
+                f"Set annual_date_column in YAML. Available columns: {list(header_df.columns)}"
+            )
+
+        file_year = extract_year_from_filename(csv_file)
+        fallback_year = int(annual_reference_year) if annual_reference_year is not None else (file_year or start_dt.year)
+
+        # Keep only rows for requested dates while reading in chunks.
+        day_chunks = {}
+        for chunk in pd.read_csv(csv_file, header=0, index_col=False, chunksize=annual_chunksize):
+            chunk = chunk.loc[:, ~chunk.columns.str.contains('^Unnamed')]
+            parsed_dates = parse_annual_dates(chunk[date_col], annual_date_formats)
+            if parsed_dates.notna().sum() == 0:
+                parsed_dates = parse_numeric_annual_day(chunk[date_col], fallback_year=fallback_year, mode=annual_day_mode)
+
+            in_range = parsed_dates.notna() & (parsed_dates >= start_dt) & (parsed_dates <= end_dt)
+            if not np.any(in_range):
+                continue
+
+            chunk = chunk.loc[in_range].copy()
+            parsed_dates = parsed_dates.loc[in_range]
+            chunk['__parsed_date__'] = parsed_dates.dt.normalize()
+
+            for day_ts, day_df in chunk.groupby('__parsed_date__', sort=True):
+                day_key = pd.to_datetime(day_ts).to_pydatetime()
+                day_df = day_df.drop(columns=['__parsed_date__'])
+                day_chunks.setdefault(day_key, []).append(day_df)
+
+        for current_date in sorted(day_chunks.keys()):
+            day_df = pd.concat(day_chunks[current_date], ignore_index=True)
+            process_one_day(day_df, current_date)
+
+if not processed_dates:
+    raise RuntimeError(
+        f"No FINN records found in the requested date range {start_date} to {end_date}."
+    )
 
 # --- CONCATENATE ALL DAYS/HOURS ---
 print("Concatenating all emissions and times...")
@@ -234,14 +398,13 @@ global_attrs = {
 }
 # Determine output filename from YAML pattern
 output_file_pattern = config.get('output_file_pattern', 'FINNv2.5.1_modvrs_nrt_MOZART_{year}{month}_{mpas_grid_name}.grid_{freq}.nc')
-first_file_date = emis_file_date_pairs[0][0]
+first_file_date = min(processed_dates)
 year = first_file_date.year
 month = f"{first_file_date.month:02d}"
 mpas_grid_name = os.path.splitext(os.path.basename(mpas_grid_file))[0]
 freq = 'hourly' if HOURLY else 'daily'
 out_file = os.path.join(dst_file_dir, output_file_pattern.format(year=year, month=month, mpas_grid_name=mpas_grid_name, freq=freq))
-
-with Dataset(out_file, 'w', format=output_format) as dst:
+with Dataset(out_file, 'w', format='NETCDF3_64BIT') as dst:
     dst.createDimension('Time', None)  # Unlimited
     dst.createDimension('nCells', nCells)
     dst.createDimension('StrLen', STR_LEN)
