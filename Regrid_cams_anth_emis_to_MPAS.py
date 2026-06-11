@@ -8,9 +8,24 @@ import datetime
 import os
 import netCDF4
 import yaml
+import argparse
+import sys
 
-with open('config_cams_anth_regrid.yaml', 'r') as f:
-    config = yaml.safe_load(f)
+# Set up the argument parser
+parser = argparse.ArgumentParser(description="Start UPTEMPO to Regrid Emissions")
+parser.add_argument("config", help="Path to the user-defined YAML configuration file")
+
+# Parse the arguments
+args = parser.parse_args()
+
+# Open the user-defined YAML file
+try:
+    with open(args.config, "r") as f:
+        config = yaml.safe_load(f)
+except FileNotFoundError:
+    print(f"Error: The file '{args.config}' was not found.")
+    sys.exit(1)
+
 
 from datetime import datetime
 from Calc_Emis import Calc_Emis_T
