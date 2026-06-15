@@ -53,6 +53,32 @@ import esmpy as ESMF
 import datetime, time, os
 import cftime
 from netCDF4 import Dataset
+
+
+# Update for cdf5 compatibility: FGL 20260611
+def _convert_wgt_to_netcdf4(wgt_file):
+    """Re-write an ESMF weight file in NETCDF4 format.
+    ESMF writes weights in CDF-5 (NETCDF3_64BIT_DATA) which some builds of
+    ESMF cannot read back via RegridFromFile.  Converting to NETCDF4 fixes
+    the incompatibility without touching the weight values.
+    """
+    tmp = wgt_file + '.nc4tmp'
+    try:
+        with Dataset(wgt_file, 'r') as src:
+            with Dataset(tmp, 'w', format='NETCDF4') as dst:
+                for attr in src.ncattrs():
+                    dst.setncattr(attr, src.getncattr(attr))
+                for name, dim in src.dimensions.items():
+                    dst.createDimension(name, len(dim))
+                for name, var in src.variables.items():
+                    v = dst.createVariable(name, var.dtype, var.dimensions)
+                    v[:] = var[:]
+        os.replace(tmp, wgt_file)
+    except Exception as e:
+        # Non-fatal: leave the original file in place
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        print(f'Warning: could not convert weight file to NETCDF4: {e}')
 import subprocess
 from Calc_Emis import Calc_Emis_T
 
@@ -656,6 +682,8 @@ class Regridding(object):
                 self.regrid = ESMF.Regrid( self.src_field, self.dst_field, 
                                           filename=self.wgt_file, regrid_method=self.method,
                                           unmapped_action=ESMF.UnmappedAction.IGNORE)               
+            # Convert to NETCDF4 so RegridFromFile can read it back on all ESMF builds
+            _convert_wgt_to_netcdf4( self.wgt_file )
             # Some possible options
             # unmapped_action=ESMF.UnmappedAction.IGNORE
             # ignore_degenerate=True
@@ -672,7 +700,27 @@ class Regridding(object):
             if self.check_timings:
                 self.Sdate = datetime.datetime.now()
                 print( 'Read regridding weight start: ', self.Sdate )
-            self.regrid = ESMF.RegridFromFile( self.src_field, self.dst_field, self.wgt_file )
+            try:
+                self.regrid = ESMF.RegridFromFile( self.src_field, self.dst_field, self.wgt_file )
+            except Exception as exc:
+                print( f'Existing weight file could not be read: {self.wgt_file}' )
+                print( 'Rebuilding weights in place and retrying.' )
+                print( f'ESMF reported: {exc}' )
+                try:
+                    os.remove( self.wgt_file )
+                except OSError:
+                    pass
+                try:
+                    self.regrid = ESMF.Regrid( self.src_field, self.dst_field,
+                                              filename=self.wgt_file,
+                                              regrid_method=self.method )
+                except:
+                    print( 'Regridding failed: adding unmappaed_action' )
+                    self.regrid = ESMF.Regrid( self.src_field, self.dst_field,
+                                              filename=self.wgt_file,
+                                              regrid_method=self.method,
+                                              unmapped_action=ESMF.UnmappedAction.IGNORE )
+                _convert_wgt_to_netcdf4( self.wgt_file )
             if self.check_timings:
                 self.Edate = datetime.datetime.now()
                 print( 'Read regridding weight end: ', self.Edate )
