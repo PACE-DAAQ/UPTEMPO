@@ -7,6 +7,7 @@
 ## 2. Features
 - Maps only user-specified FINN species to MPAS grid cells (nearest-cell assignment)
 - Converts emissions to molecules/cm²/s (supports both aerosols and gases)
+- Processes scalar variables as zonal averages with standard deviation within an MPAS cell
 - Applies location-dependent diurnal profiles
 - Outputs MPAS-compatible NetCDF files with proper variable names, units, and global attributes
 - Fully configurable via a YAML file
@@ -47,30 +48,6 @@ Key entries:
 - `species_type`: Specifies if each species is 'aerosol' or 'gas' (affects unit conversion)
 - `HOURLY`: Set to `true` to produce hourly output files, or `false` for daily output files. The code will generate either daily or hourly emissions files depending on this flag.
 - `output_format`, `compression`: NetCDF output options (Don't change because MPAS does not work with netCDF-4)
-
-## Overview
-`Regrid_FINN_to_MPAS.py` automates the mapping of selected FINN fire emissions species to an MPAS grid, producing MPAS-compatible NetCDF files with correct units, diurnal profiles, and metadata.
-
-## Features
-- Maps only user-specified FINN species to MPAS grid cells (nearest-cell assignment)
-- Converts emissions to molecules/cm²/s (supports both aerosols and gases)
-- Applies location-dependent diurnal profiles
-- Outputs MPAS-compatible NetCDF files with proper variable names, units, and global attributes
-- Fully configurable via a YAML file
-
-## YAML Configuration (`config_finn_to_mpas.yaml`)
-Key entries:
-- `file_type`: Set to `daily` (date from filename) or `annual` (date from a column in each annual file)
-- `emis_dir`: Directory containing FINN CSV files
-- `emis_file_pattern`: Glob pattern for FINN files (e.g., `*.csv`)
-- `annual_date_column` (optional): Annual date column selector. Use either a single column name (e.g., `DAY`) or a list of candidate names to try in order.
-- `annual_date_formats` (optional): Accepted annual date formats (defaults include `%Y%m%d` and `%Y%j`)
-- `dst_file_dir`: Output directory for NetCDF files
-- `mpas_grid_file`: Path to MPAS grid NetCDF file
-- `lt_fac`: Diurnal profile array (length 24, sums to 100)
-- `species_map`: Mapping of FINN species names to MPAS output variable names
-- `species_type`: Specifies if each species is 'aerosol' or 'gas' (affects unit conversion)
-- `output_format`, `compression`: NetCDF output options
 
 Example:
 ```yaml
