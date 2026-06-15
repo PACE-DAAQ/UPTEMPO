@@ -1,5 +1,5 @@
-start_date: '2024-11-11'   # YYYY-MM-DD
-end_date: '2024-11-30'     # YYYY-MM-DD
+start_date: '2024-11-01'   # YYYY-MM-DD
+end_date: '2024-11-03'     # YYYY-MM-DD
 file_type: 'daily'         # 'daily' (date in filename) or 'annual' (date inside file column)
 emis_dir: '/glade/campaign/acom/MUSICA/MPAS/input/EMIS/FINN2nrt/{year}/'
 emis_file_pattern: 'FINNv2.5.1_modvrs_nrt_MOZART_{year}{month}*.txt'
@@ -7,10 +7,10 @@ emis_file_pattern: 'FINNv2.5.1_modvrs_nrt_MOZART_{year}{month}*.txt'
 # annual_date_column: 'DAY'  # Single explicit date column
 # annual_date_column: ['DAY', 'DATE', 'YYYYMMDD']  # Try in order until a match is found
 # annual_date_formats: ['%Y%m%d', '%Y-%m-%d', '%Y/%m/%d', '%Y%j']
-dst_file_dir: '/glade/derecho/scratch/$USER/FINN2MPAS/'
+dst_file_dir: '/glade/derecho/scratch/lacey/GitHubTemp/UPTEMPO_TUTORIAL/'
 output_file_pattern: 'FINNv2.5.1_modvrs_nrt_MOZART_{year}{month}_{mpas_grid_name}_{freq}.nc'
 mpas_grid_file: '/glade/campaign/acom/MUSICA/MPAS/input/x1.163842.static.nc'
-HOURLY: true
+HOURLY: false
 lt_fac: [.43, .43, .43, .43, .43, .43, .43, .43, .43, 3., 6., 10., 14., 17., 14., 12., 9., 6., 3., .43, .43, .43, .43, .43]
 output_format: 'NETCDF3_64BIT'
 compression:
@@ -18,21 +18,23 @@ compression:
   complevel: 4
   shuffle: true
 species_map:
-  BC: bc_biob_modis
-  OC: oc_biob_modis
-  CO: co_biob_modis
-  NO2: no2_biob_modis
-  NH3: nh3_biob_modis
-  SO2: so2_biob_modis
-  ISOP: iso_biob_modis
-  BIGENE: mnt_biob_modis
+  AREA: area_biob_modis
+#  BC: bc_biob_modis
+#  OC: oc_biob_modis
+#  CO: co_biob_modis
+#  NO2: no2_biob_modis
+#  NH3: nh3_biob_modis
+#  SO2: so2_biob_modis
+#  ISOP: iso_biob_modis
+#  BIGENE: mnt_biob_modis
 species_type:
-  BC: aerosol
-  OC: aerosol
-  CO: gas
-  NO2: gas
-  NH3: gas
-  SO2: gas
-  ISOP: gas
-  BIGENE: gas
+  AREA: scalar
+#  BC: aerosol
+#  OC: aerosol
+#  CO: gas
+#  NO2: gas
+#  NH3: gas
+#  SO2: gas
+#  ISOP: gas
+#  BIGENE: gas
 

@@ -244,14 +244,24 @@ nCells = ds.sizes["nCells"]
 all_xtime = []
 processed_dates = []
 species_arrays = {species_map[col]: [] for col in species_to_map if col in species_map and species_map[col] != "co2_biob_modis"}
+scalar_std_arrays = {
+    f"{species_map[col]}_std": []
+    for col in species_to_map
+    if col in species_map and species_map[col] != "co2_biob_modis" and species_type.get(col, None) == "scalar"
+}
 
 def process_one_day(df, current_date):
     # Modified read statement to accomodate FINNv1 fortran format strings FGL
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
     for col in df.columns:
-        df[col] = (df[col].astype(str).str.replace('D', 'E', regex=False).str.replace('d', 'E', regex=False))
+        cleaned = df[col].astype(str).str.replace('D', 'E', regex=False).str.replace('d', 'E', regex=False)
         if col not in {'LATI', 'LONGI'}:
-            df[col] = pd.to_numeric(df[col], errors='ignore')
+            try:
+                df[col] = pd.to_numeric(cleaned)
+            except (ValueError, TypeError):
+                df[col] = cleaned
+        else:
+            df[col] = cleaned
 
     if 'LATI' not in df.columns or 'LONGI' not in df.columns:
         raise KeyError("Input FINN file is missing required LATI/LONGI columns.")
@@ -268,9 +278,22 @@ def process_one_day(df, current_date):
     lati = lati[valid_geo]
     longi = longi[valid_geo]
 
-    co2_index = next(i for i, col in enumerate(df.columns) if "CO2" in col)
-    emission_cols = [col for col in df.columns[co2_index:] if col in species_to_map]
+    emission_cols = [col for col in df.columns if col in species_to_map]
+    if not emission_cols:
+        raise ValueError(
+            f"No requested species columns were found in the FINN input. Requested species: {sorted(species_to_map)}"
+        )
     emission_per_cell = {col: np.zeros(nCells) for col in emission_cols}
+    scalar_count_per_cell = {
+        col: np.zeros(nCells, dtype=int)
+        for col in emission_cols
+        if species_type.get(col, None) == "scalar"
+    }
+    scalar_sumsq_per_cell = {
+        col: np.zeros(nCells, dtype=float)
+        for col in emission_cols
+        if species_type.get(col, None) == "scalar"
+    }
     # Ensure longitude conventions match: convert all to -180 to 180
     def to_minus180_180(lon):
         lon = np.asarray(lon)
@@ -287,7 +310,11 @@ def process_one_day(df, current_date):
                 continue
             tmp = pd.to_numeric(df.iloc[i][col], errors='coerce')
             if pd.notna(tmp):
-                emission_per_cell[col][min_index] += float(tmp)
+                value = float(tmp)
+                emission_per_cell[col][min_index] += value
+                if species_type.get(col, None) == "scalar":
+                    scalar_count_per_cell[col][min_index] += 1
+                    scalar_sumsq_per_cell[col][min_index] += value * value
     # For each emission species, convert units and apply diurnal profile
     for col, values in emission_per_cell.items():
         if col not in species_map:
@@ -295,6 +322,7 @@ def process_one_day(df, current_date):
         var_name = species_map[col]
         stype = species_type.get(col, None)
         values_conv = np.zeros_like(values, dtype=float)
+        std_conv = None
         if stype == "aerosol":
             values_g = values * 1000.0
             values_mol = values_g / AEROSOL_MW
@@ -306,19 +334,38 @@ def process_one_day(df, current_date):
             values_mol_s = values / SECONDS_PER_DAY
             values_molecules = values_mol_s * AVOGADRO
             values_conv = values_molecules / areaCell_cm2
+        elif stype == "scalar":
+            count = scalar_count_per_cell.get(col, np.ones_like(values, dtype=int))
+            sumsq = scalar_sumsq_per_cell.get(col, np.zeros_like(values, dtype=float))
+            with np.errstate(divide='ignore', invalid='ignore'):
+                values_conv = np.true_divide(values, count)
+                values_conv[count == 0] = 0.0
+                mean_sq = np.true_divide(sumsq, count)
+                mean_sq[count == 0] = 0.0
+                variance = mean_sq - np.square(values_conv)
+                variance = np.maximum(variance, 0.0)
+                std_conv = np.sqrt(variance)
+                std_conv[count == 0] = 0.0
         else:
             values_conv = values
 
         if HOURLY:
             wrk_lt_fac = np.array(lt_fac) / np.sum(lt_fac) * 24.
             hourly_values = np.zeros((24, values_conv.shape[0]))
+            hourly_std_values = np.zeros((24, values_conv.shape[0])) if std_conv is not None else None
             for cell in range(values_conv.shape[0]):
                 offset = local_hour_offset[cell]
                 shifted_fac = np.roll(wrk_lt_fac, -offset)
                 hourly_values[:, cell] = values_conv[cell] * shifted_fac
+                if hourly_std_values is not None:
+                    hourly_std_values[:, cell] = std_conv[cell] * shifted_fac
             species_arrays[var_name].append(hourly_values)
+            if hourly_std_values is not None:
+                scalar_std_arrays[f"{var_name}_std"].append(hourly_std_values)
         else:
             species_arrays[var_name].append(values_conv)
+            if std_conv is not None:
+                scalar_std_arrays[f"{var_name}_std"].append(std_conv)
 
     # Add xtime for this day
     xtime_arr = make_xtime_array(current_date, HOURLY, STR_LEN)
@@ -383,11 +430,15 @@ if HOURLY:
     # Stack all hourly arrays for each species
     for var in species_arrays:
         species_arrays[var] = np.concatenate(species_arrays[var], axis=0)  # shape: (Time, nCells)
+    for var in scalar_std_arrays:
+        scalar_std_arrays[var] = np.concatenate(scalar_std_arrays[var], axis=0)  # shape: (Time, nCells)
     xtime_all = np.concatenate(all_xtime, axis=0)  # shape: (Time, StrLen)
 else:
     total_times = len(all_xtime)
     for var in species_arrays:
         species_arrays[var] = np.stack(species_arrays[var], axis=0)  # shape: (Time, nCells)
+    for var in scalar_std_arrays:
+        scalar_std_arrays[var] = np.stack(scalar_std_arrays[var], axis=0)  # shape: (Time, nCells)
     xtime_all = np.stack(all_xtime, axis=0)  # shape: (Time, StrLen)
 
 print("Writing single output NetCDF file with unlimited Time dimension...")
@@ -410,6 +461,9 @@ with Dataset(out_file, 'w', format='NETCDF3_64BIT') as dst:
     dst.createDimension('StrLen', STR_LEN)
     # Write emission variables
     for var, arr in species_arrays.items():
+        v = dst.createVariable(var, arr.dtype.name, ('Time', 'nCells'), fill_value=np.nan)
+        v[:, :] = arr
+    for var, arr in scalar_std_arrays.items():
         v = dst.createVariable(var, arr.dtype.name, ('Time', 'nCells'), fill_value=np.nan)
         v[:, :] = arr
     # Add nCells variable (cell numbers 0 to nCells-1)
