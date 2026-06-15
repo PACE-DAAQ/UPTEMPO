@@ -1,5 +1,5 @@
-start_date: '2024-11-11'   # YYYY-MM-DD
-end_date: '2024-11-30'     # YYYY-MM-DD
+start_date: '2024-12-01'   # YYYY-MM-DD
+end_date: '2024-12-31'     # YYYY-MM-DD
 file_type: 'daily'         # 'daily' (date in filename) or 'annual' (date inside file column)
 emis_dir: '/glade/derecho/scratch/lacey/PACE/FINNv2.5/{year}/'
 emis_file_pattern: 'FINNv2.5.1_modvrs_nrt_MOZART_{year}{month}*.txt'
@@ -7,8 +7,8 @@ emis_file_pattern: 'FINNv2.5.1_modvrs_nrt_MOZART_{year}{month}*.txt'
 # annual_date_column: 'DAY'  # Single explicit date column
 # annual_date_column: ['DAY', 'DATE', 'YYYYMMDD']  # Try in order until a match is found
 # annual_date_formats: ['%Y%m%d', '%Y-%m-%d', '%Y/%m/%d', '%Y%j']
-dst_file_dir: '/glade/derecho/scratch/lacey/MPAS_DEVEL/input/daily/NovTest/'
-output_file_pattern: 'FINNv2.5.1_modvrs_nrt_MOZART_{year}{month}_{mpas_grid_name}_{freq}_NO2.nc'
+dst_file_dir: '/glade/derecho/scratch/lacey/PACE/FINNv2.5/2024/MPAS/NovAddon/'
+output_file_pattern: 'FINNv2.5.1_modvrs_nrt_MOZART_{year}{month}_{mpas_grid_name}_{freq}_SPC.nc'
 mpas_grid_file: '/glade/campaign/ncar/nmmm0072/GRID/x1.163842.static.nc'
 HOURLY: true
 lt_fac: [.43, .43, .43, .43, .43, .43, .43, .43, .43, 3., 6., 10., 14., 17., 14., 12., 9., 6., 3., .43, .43, .43, .43, .43]

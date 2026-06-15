@@ -1,7 +1,7 @@
 # UPTEMPO Regridding Configuration
 # Edit the values below to customize your workflow
 
-year: 2019
+year: 2024
 species:
   - black-carbon: bc
 #  - organic-carbon: oc
